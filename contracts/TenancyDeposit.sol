@@ -2,7 +2,7 @@ pragma solidity ^0.4.18;
 
 contract TenancyDeposit {
 
-    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIM, DEDUCTION_CLAIMED, DISPUTE, DISPUTE_RESOLVED, DONE}
+    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_CLAIMED, DISPUTE, DISPUTE_RESOLVED, DONE}
 
     ContractStatus status = ContractStatus.UNSIGNED;
 
@@ -28,6 +28,7 @@ contract TenancyDeposit {
         _;
     }
 
+    address contractAddress;
     address landlord;
     bool landlordDeductionClaimed;
     bool landlordDeductionPaid;
@@ -49,6 +50,8 @@ contract TenancyDeposit {
         require(_arbiter != _tenant);
         require(_expectedDeposit > 0 ether);
         require(status == ContractStatus.UNSIGNED);
+
+        contractAddress = this;
 
         landlord = msg.sender;
         landlordDeductionClaimed = false;
@@ -78,13 +81,13 @@ contract TenancyDeposit {
         status = ContractStatus.ACTIVE;
     }
 
-    function expireContract() public payable withContractStatus(ContractStatus.ACTIVE) {
+    function terminateContract() public payable withContractStatus(ContractStatus.ACTIVE) {
         require(tenant == msg.sender || landlord == msg.sender);
         status = ContractStatus.COMPLETE;
     }
 
     function tenantClaimDeduction(uint _tenantDeductionClaim) public tenantOnly {
-        require(status == ContractStatus.COMPLETE || status == ContractStatus.DEDUCTION_CLAIM);
+        require(status == ContractStatus.COMPLETE || status == ContractStatus.DEDUCTION_CLAIMING);
         require(!tenantDeductionClaimed);
         require(_tenantDeductionClaim <= paidDeposit);
 
@@ -94,22 +97,22 @@ contract TenancyDeposit {
         if (landlordDeductionClaimed) {
             status = ContractStatus.DEDUCTION_CLAIMED;
         } else {
-            status = ContractStatus.DEDUCTION_CLAIM;
+            status = ContractStatus.DEDUCTION_CLAIMING;
         }
     }
 
     function landlordClaimDeduction(uint _landlordDeductionClaim) public landlordOnly {
-        require(status == ContractStatus.COMPLETE || status == ContractStatus.DEDUCTION_CLAIM);
+        require(status == ContractStatus.COMPLETE || status == ContractStatus.DEDUCTION_CLAIMING);
         require(!landlordDeductionClaimed);
         require(_landlordDeductionClaim <= paidDeposit);
 
         landlordDeductionClaim = _landlordDeductionClaim;
         landlordDeductionClaimed = true;
 
-        if (landlordDeductionClaimed) {
+        if (tenantDeductionClaimed) {
             status = ContractStatus.DEDUCTION_CLAIMED;
         } else {
-            status = ContractStatus.DEDUCTION_CLAIM;
+            status = ContractStatus.DEDUCTION_CLAIMING;
         }
     }
 
@@ -164,7 +167,7 @@ contract TenancyDeposit {
     }
 
     function getPaidDeposit() view public returns (uint) {
-        return paidDeposit;
+        return contractAddress.balance;
     }
 
     function getContractStatus() view public returns (ContractStatus) {
