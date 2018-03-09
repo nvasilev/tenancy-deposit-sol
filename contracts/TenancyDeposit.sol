@@ -114,7 +114,7 @@ contract TenancyDeposit {
         landlordDeductionClaimed = true;
 
         if (tenantDeductionClaimed) {
-            if (tenantDeductionClaimed == landlordDeductionClaimed) {
+            if (tenantDeductionClaim == landlordDeductionClaim) {
                 status = ContractStatus.DEDUCTION_AGREED;
             } else {
                 status = ContractStatus.DISPUTE;
