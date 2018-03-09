@@ -2,7 +2,7 @@ pragma solidity ^0.4.18;
 
 contract TenancyDeposit {
 
-    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_CLAIMED, DISPUTE, DISPUTE_RESOLVED, DONE}
+    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_AGREED, DISPUTE, DISPUTE_RESOLVED, DONE}
 
     ContractStatus status = ContractStatus.UNSIGNED;
 
@@ -35,7 +35,7 @@ contract TenancyDeposit {
     uint landlordDeductionClaim;
     address tenant;
     bool tenantDeductionClaimed;
-    bool tenantDepositReturned;
+    bool tenantDepositReimbursed;
     uint tenantDeductionClaim;
     address arbiter;
     uint arbiterDeductionClaim;
@@ -95,7 +95,11 @@ contract TenancyDeposit {
         tenantDeductionClaimed = true;
 
         if (landlordDeductionClaimed) {
-            status = ContractStatus.DEDUCTION_CLAIMED;
+            if (tenantDeductionClaim == landlordDeductionClaim) {
+                status = ContractStatus.DEDUCTION_AGREED;
+            } else {
+                status = ContractStatus.DISPUTE;
+            }
         } else {
             status = ContractStatus.DEDUCTION_CLAIMING;
         }
@@ -110,46 +114,49 @@ contract TenancyDeposit {
         landlordDeductionClaimed = true;
 
         if (tenantDeductionClaimed) {
-            status = ContractStatus.DEDUCTION_CLAIMED;
+            if (tenantDeductionClaimed == landlordDeductionClaimed) {
+                status = ContractStatus.DEDUCTION_AGREED;
+            } else {
+                status = ContractStatus.DISPUTE;
+            }
         } else {
             status = ContractStatus.DEDUCTION_CLAIMING;
         }
     }
 
     function withdrawLandlordClaim() public payable landlordOnly {
-        require(status == ContractStatus.DEDUCTION_CLAIMED || status == ContractStatus.DISPUTE_RESOLVED);
+        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED);
         require(!landlordDeductionPaid);
 
-        if (landlordDeductionClaim != tenantDeductionClaim) {
-            status = ContractStatus.DISPUTE;
-            return;
+        // in case of a dispute arbiter's deduction claim is considered
+        uint deduction = landlordDeductionClaim;
+        if (status == ContractStatus.DISPUTE_RESOLVED) {
+            deduction = arbiterDeductionClaim;
         }
 
-        msg.sender.transfer(landlordDeductionClaim);
+        msg.sender.transfer(deduction);
         landlordDeductionPaid = true;
-        if (tenantDepositReturned) {
-            status = ContractStatus.COMPLETE;
+
+        if (tenantDepositReimbursed) {
+            status = ContractStatus.DONE;
         }
     }
 
     function withdrawTenantDeposit() public payable tenantOnly {
-        require(status == ContractStatus.DEDUCTION_CLAIMED || status == ContractStatus.DISPUTE_RESOLVED);
-        require(!tenantDepositReturned);
+        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED);
+        require(!tenantDepositReimbursed);
 
-        if (landlordDeductionClaim != tenantDeductionClaim) {
-            status = ContractStatus.DISPUTE;
-            return;
-        }
-
+        // in case of a dispute arbiter's deduction claim is considered
         uint deduction = landlordDeductionClaim;
         if (status == ContractStatus.DISPUTE_RESOLVED) {
             deduction = arbiterDeductionClaim;
         }
 
         msg.sender.transfer(paidDeposit - deduction);
-        tenantDepositReturned = true;
-        if (tenantDepositReturned) {
-            status = ContractStatus.COMPLETE;
+        tenantDepositReimbursed = true;
+
+        if (landlordDeductionPaid) {
+            status = ContractStatus.DONE;
         }
     }
 
