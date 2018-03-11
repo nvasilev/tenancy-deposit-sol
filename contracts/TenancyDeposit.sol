@@ -4,6 +4,10 @@ contract TenancyDeposit {
 
     enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_AGREED, DISPUTE, DISPUTE_RESOLVED, DONE}
 
+    event StatusChanged (address indexed _contractAddress, address indexed _from, uint indexed statusIndex);
+    event DeductionClaimed (address indexed _contractAddress, address indexed _from, uint claim);
+    event BalanceChanged (address indexed _contractAddress, address indexed _from, uint value);
+
     ContractStatus status = ContractStatus.UNSIGNED;
 
     uint constant MAX_VALUE = ~uint256(0);
@@ -53,6 +57,8 @@ contract TenancyDeposit {
 
         contractAddress = this;
 
+        StatusChanged(contractAddress, msg.sender, uint(status));
+
         landlord = msg.sender;
         landlordDeductionClaimed = false;
         landlordDeductionClaim = 0;
@@ -70,6 +76,8 @@ contract TenancyDeposit {
         creationDate = block.timestamp;
 
         status = ContractStatus.DEPOSIT_REQUIRED;
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
     }
 
     function signContract() public payable
@@ -79,11 +87,16 @@ contract TenancyDeposit {
         require(expectedDeposit <= msg.value);
         paidDeposit = msg.value;
         status = ContractStatus.ACTIVE;
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        BalanceChanged(contractAddress, msg.sender, contractAddress.balance);
     }
 
     function terminateContract() public payable withContractStatus(ContractStatus.ACTIVE) {
         require(tenant == msg.sender || landlord == msg.sender);
         status = ContractStatus.COMPLETE;
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
     }
 
     function tenantClaimDeduction(uint _tenantDeductionClaim) public tenantOnly {
@@ -103,6 +116,9 @@ contract TenancyDeposit {
         } else {
             status = ContractStatus.DEDUCTION_CLAIMING;
         }
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        DeductionClaimed(contractAddress, msg.sender, tenantDeductionClaim);
     }
 
     function landlordClaimDeduction(uint _landlordDeductionClaim) public landlordOnly {
@@ -122,6 +138,9 @@ contract TenancyDeposit {
         } else {
             status = ContractStatus.DEDUCTION_CLAIMING;
         }
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        DeductionClaimed(contractAddress, msg.sender, landlordDeductionClaim);
     }
 
     function withdrawLandlordClaim() public payable landlordOnly {
@@ -140,6 +159,9 @@ contract TenancyDeposit {
         if (tenantDepositReimbursed) {
             status = ContractStatus.DONE;
         }
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        BalanceChanged(contractAddress, msg.sender, contractAddress.balance);
     }
 
     function withdrawTenantDeposit() public payable tenantOnly {
@@ -158,6 +180,9 @@ contract TenancyDeposit {
         if (landlordDeductionPaid) {
             status = ContractStatus.DONE;
         }
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        BalanceChanged(contractAddress, msg.sender, contractAddress.balance);
     }
 
     function resolveDispute(uint claim) public payable arbiterOnly withContractStatus(ContractStatus.DISPUTE) {
@@ -167,6 +192,9 @@ contract TenancyDeposit {
         arbiterDeductionClaim = claim;
         status = ContractStatus.DISPUTE_RESOLVED;
         // TODO collect fee
+
+        StatusChanged(contractAddress, msg.sender, uint(status));
+        DeductionClaimed(contractAddress, msg.sender, claim);
     }
 
     function getExpectedDeposit() view public returns (uint) {
