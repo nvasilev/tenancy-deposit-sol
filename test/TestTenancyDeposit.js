@@ -108,8 +108,10 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
 
         let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
+        let actualLandlordDeductionClaim = await instance.getLandlordDeductionClaim();
 
         assert.equal(actualPaidDeposit, deposit);
+        assert.equal(actualLandlordDeductionClaim, 1);
         assert.equal(actualContractStatus, ContractStatus.DEDUCTION_CLAIMING);
     });
 
@@ -124,8 +126,10 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         // then
         let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
+        let actualTenantDeductionClaim = await instance.getTenantDeductionClaim();
 
         assert.equal(actualPaidDeposit, deposit);
+        assert.equal(actualTenantDeductionClaim, 1);
         assert.equal(actualContractStatus, ContractStatus.DEDUCTION_CLAIMING);
     });
 
@@ -178,8 +182,10 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         // then
         let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
+        let actualArbiterDeductionClaim = await instance.getArbiterDeductionClaim();
 
         assert.equal(actualPaidDeposit, '3');
+        assert.equal(actualArbiterDeductionClaim, '3');
         assert.equal(actualContractStatus, ContractStatus.DISPUTE_RESOLVED);
     });
 

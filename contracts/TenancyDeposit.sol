@@ -181,4 +181,15 @@ contract TenancyDeposit {
         return status;
     }
 
+    function getLandlordDeductionClaim() view public returns (uint) {
+        return landlordDeductionClaim;
+    }
+
+    function getTenantDeductionClaim() view public returns (uint) {
+        return tenantDeductionClaim;
+    }
+
+    function getArbiterDeductionClaim() view public returns (uint) {
+        return arbiterDeductionClaim;
+    }
 }
