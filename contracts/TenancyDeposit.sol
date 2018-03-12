@@ -2,7 +2,7 @@ pragma solidity ^0.4.18;
 
 contract TenancyDeposit {
 
-    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_AGREED, DISPUTE, DISPUTE_RESOLVED, DONE}
+    enum ContractStatus {UNSIGNED, DEPOSIT_REQUIRED, ACTIVE, COMPLETE, DEDUCTION_CLAIMING, DEDUCTION_AGREED, DISPUTE, DISPUTE_RESOLVED, MONEY_WITHDRAWAL,DONE}
 
     event StatusChanged (address indexed _contractAddress, address indexed _from, uint indexed statusIndex);
     event DeductionClaimed (address indexed _contractAddress, address indexed _from, uint claim);
@@ -49,7 +49,7 @@ contract TenancyDeposit {
     uint paidDeposit;
     uint creationDate;
 
-    function TenancyDeposit(address _tenant, address _arbiter, uint _expectedDeposit) public payable
+    function TenancyDeposit(address _tenant, address _arbiter, uint _expectedDeposit) public
     {
         require(_tenant != msg.sender);
         require(_arbiter != msg.sender);
@@ -148,7 +148,7 @@ contract TenancyDeposit {
     }
 
     function withdrawLandlordClaim() public payable landlordOnly {
-        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED);
+        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED || status == ContractStatus.MONEY_WITHDRAWAL);
         require(!landlordDeductionPaid);
 
         // in case of a dispute arbiter's deduction claim is considered
@@ -157,11 +157,15 @@ contract TenancyDeposit {
             deduction = arbiterDeductionClaim;
         }
 
-        msg.sender.transfer(deduction);
+        uint transferAmount = this.balance - (paidDeposit - deduction);
+
+        msg.sender.transfer(transferAmount);
         landlordDeductionPaid = true;
 
         if (tenantDepositReimbursed) {
             status = ContractStatus.DONE;
+        } else {
+            status = ContractStatus.MONEY_WITHDRAWAL;
         }
 
         StatusChanged(contractAddress, msg.sender, uint(status));
@@ -169,7 +173,7 @@ contract TenancyDeposit {
     }
 
     function withdrawTenantDeposit() public payable tenantOnly {
-        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED);
+        require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED || status == ContractStatus.MONEY_WITHDRAWAL);
         require(!tenantDepositReimbursed);
 
         // in case of a dispute arbiter's deduction claim is considered
@@ -178,11 +182,15 @@ contract TenancyDeposit {
             deduction = arbiterDeductionClaim;
         }
 
-        msg.sender.transfer(paidDeposit - deduction);
+        uint transferAmount = paidDeposit - deduction;
+
+        msg.sender.transfer(transferAmount);
         tenantDepositReimbursed = true;
 
         if (landlordDeductionPaid) {
             status = ContractStatus.DONE;
+        } else {
+            status = ContractStatus.MONEY_WITHDRAWAL;
         }
 
         StatusChanged(contractAddress, msg.sender, uint(status));
@@ -207,7 +215,19 @@ contract TenancyDeposit {
     }
 
     function getPaidDeposit() view public returns (uint) {
+        return paidDeposit;
+    }
+
+    function getContractBalance() view public returns (uint) {
         return contractAddress.balance;
+    }
+
+    function getTenantBalance() view public tenantOnly returns (uint) {
+        return msg.sender.balance;
+    }
+
+    function getLandlordBalance() view public landlordOnly returns (uint) {
+        return msg.sender.balance;
     }
 
     function getContractStatus() view public returns (ContractStatus) {

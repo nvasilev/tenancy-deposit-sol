@@ -15,7 +15,8 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         DEDUCTION_AGREED: 5,
         DISPUTE: 6,
         DISPUTE_RESOLVED: 7,
-        DONE: 8
+        MONEY_WITHDRAWAL: 8,
+        DONE: 9
     });
 
     const deposit = '10000000000000000000';
@@ -36,11 +37,11 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
 
     it("The contract is created correctly.", async function () {
         let actualExpectedDeposit = await instance.getExpectedDeposit();
-        let actualPaidDeposit = await instance.getPaidDeposit();
+        let actualContractBalance = await instance.getContractBalance();
         let actualContractStatus = await instance.getContractStatus();
 
         assert.equal(actualExpectedDeposit, deposit);
-        assert.equal(actualPaidDeposit, '0');
+        assert.equal(actualContractBalance, '0');
         assert.equal(actualContractStatus, ContractStatus.DEPOSIT_REQUIRED);
     });
 
@@ -49,10 +50,10 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.signContract({from: tenantAddress, value: deposit});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
+        let actualContractBalance = await instance.getContractBalance();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, deposit);
+        assert.equal(actualContractBalance, deposit);
         assert.equal(actualContractStatus, ContractStatus.ACTIVE);
     });
 
@@ -64,10 +65,8 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.terminateContract({from: tenantAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualContractStatus, ContractStatus.COMPLETE);
     });
 
@@ -79,10 +78,8 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.terminateContract({from: landlordAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualContractStatus, ContractStatus.COMPLETE);
     });
 
@@ -106,11 +103,9 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
 
         await instance.landlordClaimDeduction(1, {from: landlordAddress});
 
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
         let actualLandlordDeductionClaim = await instance.getLandlordDeductionClaim();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualLandlordDeductionClaim, 1);
         assert.equal(actualContractStatus, ContractStatus.DEDUCTION_CLAIMING);
     });
@@ -124,11 +119,9 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.tenantClaimDeduction(1, {from: tenantAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
         let actualTenantDeductionClaim = await instance.getTenantDeductionClaim();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualTenantDeductionClaim, 1);
         assert.equal(actualContractStatus, ContractStatus.DEDUCTION_CLAIMING);
     });
@@ -143,10 +136,8 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.landlordClaimDeduction(1, {from: landlordAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualContractStatus, ContractStatus.DEDUCTION_AGREED);
     });
 
@@ -160,10 +151,8 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.tenantClaimDeduction(1, {from: tenantAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, deposit);
         assert.equal(actualContractStatus, ContractStatus.DISPUTE);
     });
 
@@ -180,13 +169,11 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.withdrawTenantDeposit({from: tenantAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
+        let actualContractBalance = await instance.getContractBalance();
         let actualContractStatus = await instance.getContractStatus();
-        let actualArbiterDeductionClaim = await instance.getArbiterDeductionClaim();
 
-        assert.equal(actualPaidDeposit, '3');
-        assert.equal(actualArbiterDeductionClaim, '3');
-        assert.equal(actualContractStatus, ContractStatus.DISPUTE_RESOLVED);
+        assert.equal(actualContractBalance, '3');
+        assert.equal(actualContractStatus, ContractStatus.MONEY_WITHDRAWAL);
     });
 
     it("Landlord should be able to withdraw the claimed deduction successfully after arbitrary's decision.", async function () {
@@ -202,11 +189,31 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         await instance.withdrawLandlordClaim({from: landlordAddress});
 
         // then
-        let actualPaidDeposit = await instance.getPaidDeposit();
+        let actualContractBalance = await instance.getContractBalance();
         let actualContractStatus = await instance.getContractStatus();
 
-        assert.equal(actualPaidDeposit, '9999999999999999997');
-        assert.equal(actualContractStatus, ContractStatus.DISPUTE_RESOLVED);
+        assert.equal(actualContractBalance, '9999999999999999997');
+        assert.equal(actualContractStatus, ContractStatus.MONEY_WITHDRAWAL);
+    });
+
+    it("Contract should be DONE once all withdrawals are complete.", async function () {
+
+
+        // given
+        await instance.signContract({from: tenantAddress, value: deposit});
+        await instance.terminateContract({from: landlordAddress});
+        await instance.tenantClaimDeduction(1, {from: tenantAddress});
+        await instance.landlordClaimDeduction(1, {from: landlordAddress});
+
+
+        // when
+        await instance.withdrawLandlordClaim({from: landlordAddress});
+        await instance.withdrawTenantDeposit({from: tenantAddress});
+
+        // then
+        let actualContractStatus = await instance.getContractStatus();
+
+        assert.equal(actualContractStatus, ContractStatus.DONE);
     });
 
 });
