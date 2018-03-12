@@ -31,7 +31,7 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
     });
 
     afterEach(async function() {
-       instance = null;
+        instance = null;
     });
 
 
@@ -81,19 +81,6 @@ contract('Tenancy Deposit Without A Dispute', function(accounts) {
         let actualContractStatus = await instance.getContractStatus();
 
         assert.equal(actualContractStatus, ContractStatus.COMPLETE);
-    });
-
-    it("Arbiter should not be able to terminate a contract.", async function () {
-        // given
-        await instance.signContract({from: tenantAddress, value: deposit});
-
-        // when
-        try {
-            await instance.terminateContract({from: arbiterAddress});
-            assert.fail(0, 1, 'Arbiter has terminated the contact');
-        } catch (err) {
-            assert.isTrue(err instanceof Error);
-        }
     });
 
     it("Landlord should claim deduction successfully.", async function () {
