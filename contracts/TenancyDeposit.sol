@@ -8,6 +8,7 @@ contract TenancyDeposit {
     event DeductionClaimed (address indexed _contractAddress, address indexed _from, uint claim);
     event DeductionAgreed (address indexed _contractAddress, address indexed _from, uint deduction);
     event DisputeResolved (address indexed _contractAddress, address indexed _from, uint deduction);
+    event MoneyWithdrawn  (address indexed _contractAddress, address indexed _from, uint amount);
     event BalanceChanged (address indexed _contractAddress, address indexed _from, uint value);
 
     ContractStatus status = ContractStatus.UNSIGNED;
@@ -44,7 +45,7 @@ contract TenancyDeposit {
     bool tenantDepositReimbursed;
     uint tenantDeductionClaim;
     address arbiter;
-    uint arbiterDeductionClaim;
+    uint finalDeductionAmount;
     uint expectedDeposit;
     uint paidDeposit;
     uint creationDate;
@@ -70,7 +71,7 @@ contract TenancyDeposit {
         tenantDeductionClaim = 0;
 
         arbiter = _arbiter;
-        arbiterDeductionClaim = 0;
+        finalDeductionAmount = 0;
 
         expectedDeposit = _expectedDeposit;
         paidDeposit = 0 ether;
@@ -111,6 +112,7 @@ contract TenancyDeposit {
 
         if (landlordDeductionClaimed) {
             if (tenantDeductionClaim == landlordDeductionClaim) {
+                finalDeductionAmount = tenantDeductionClaim;
                 status = ContractStatus.DEDUCTION_AGREED;
                 DeductionAgreed(contractAddress, msg.sender, landlordDeductionClaim);
             } else {
@@ -134,6 +136,7 @@ contract TenancyDeposit {
 
         if (tenantDeductionClaimed) {
             if (tenantDeductionClaim == landlordDeductionClaim) {
+                finalDeductionAmount = landlordDeductionClaim;
                 status = ContractStatus.DEDUCTION_AGREED;
                 DeductionAgreed(contractAddress, msg.sender, tenantDeductionClaim);
             } else {
@@ -151,15 +154,7 @@ contract TenancyDeposit {
         require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED || status == ContractStatus.MONEY_WITHDRAWAL);
         require(!landlordDeductionPaid);
 
-        // in case of a dispute arbiter's deduction claim is considered
-        uint deduction = landlordDeductionClaim;
-        if (status == ContractStatus.DISPUTE_RESOLVED) {
-            deduction = arbiterDeductionClaim;
-        }
-
-        uint transferAmount = this.balance - (paidDeposit - deduction);
-
-        msg.sender.transfer(transferAmount);
+        msg.sender.transfer(finalDeductionAmount);
         landlordDeductionPaid = true;
 
         if (tenantDepositReimbursed) {
@@ -169,6 +164,7 @@ contract TenancyDeposit {
         }
 
         StatusChanged(contractAddress, msg.sender, uint(status));
+        MoneyWithdrawn(contractAddress, msg.sender, finalDeductionAmount);
         BalanceChanged(contractAddress, msg.sender, contractAddress.balance);
     }
 
@@ -176,13 +172,7 @@ contract TenancyDeposit {
         require(status == ContractStatus.DEDUCTION_AGREED || status == ContractStatus.DISPUTE_RESOLVED || status == ContractStatus.MONEY_WITHDRAWAL);
         require(!tenantDepositReimbursed);
 
-        // in case of a dispute arbiter's deduction claim is considered
-        uint deduction = landlordDeductionClaim;
-        if (status == ContractStatus.DISPUTE_RESOLVED) {
-            deduction = arbiterDeductionClaim;
-        }
-
-        uint transferAmount = paidDeposit - deduction;
+        uint transferAmount = paidDeposit - finalDeductionAmount;
 
         msg.sender.transfer(transferAmount);
         tenantDepositReimbursed = true;
@@ -194,6 +184,7 @@ contract TenancyDeposit {
         }
 
         StatusChanged(contractAddress, msg.sender, uint(status));
+        MoneyWithdrawn(contractAddress, msg.sender, transferAmount);
         BalanceChanged(contractAddress, msg.sender, contractAddress.balance);
     }
 
@@ -201,7 +192,7 @@ contract TenancyDeposit {
         require(tenantDeductionClaim != landlordDeductionClaim);
         require(claim <= paidDeposit);
 
-        arbiterDeductionClaim = claim;
+        finalDeductionAmount = claim;
         status = ContractStatus.DISPUTE_RESOLVED;
         // TODO collect fee
 
@@ -242,7 +233,7 @@ contract TenancyDeposit {
         return tenantDeductionClaim;
     }
 
-    function getArbiterDeductionClaim() view public returns (uint) {
-        return arbiterDeductionClaim;
+    function getFinalDeductionClaim() view public returns (uint) {
+        return finalDeductionAmount;
     }
 }
