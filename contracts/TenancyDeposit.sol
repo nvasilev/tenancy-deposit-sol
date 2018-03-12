@@ -6,6 +6,8 @@ contract TenancyDeposit {
 
     event StatusChanged (address indexed _contractAddress, address indexed _from, uint indexed statusIndex);
     event DeductionClaimed (address indexed _contractAddress, address indexed _from, uint claim);
+    event DeductionAgreed (address indexed _contractAddress, address indexed _from, uint deduction);
+    event DisputeResolved (address indexed _contractAddress, address indexed _from, uint deduction);
     event BalanceChanged (address indexed _contractAddress, address indexed _from, uint value);
 
     ContractStatus status = ContractStatus.UNSIGNED;
@@ -110,6 +112,7 @@ contract TenancyDeposit {
         if (landlordDeductionClaimed) {
             if (tenantDeductionClaim == landlordDeductionClaim) {
                 status = ContractStatus.DEDUCTION_AGREED;
+                DeductionAgreed(contractAddress, msg.sender, landlordDeductionClaim);
             } else {
                 status = ContractStatus.DISPUTE;
             }
@@ -132,6 +135,7 @@ contract TenancyDeposit {
         if (tenantDeductionClaimed) {
             if (tenantDeductionClaim == landlordDeductionClaim) {
                 status = ContractStatus.DEDUCTION_AGREED;
+                DeductionAgreed(contractAddress, msg.sender, tenantDeductionClaim);
             } else {
                 status = ContractStatus.DISPUTE;
             }
@@ -195,6 +199,7 @@ contract TenancyDeposit {
 
         StatusChanged(contractAddress, msg.sender, uint(status));
         DeductionClaimed(contractAddress, msg.sender, claim);
+        DisputeResolved(contractAddress, msg.sender, claim);
     }
 
     function getExpectedDeposit() view public returns (uint) {
