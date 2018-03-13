@@ -22,3 +22,6 @@ $ ganache-cli -d
 $ truffle test
 ```
 Please note that if your test suite grows too much, the accounts which Ganache provides might run out of fuel. Currently there is no way to change the default amount of ether per account, although there is a command line parameter `--defaultBalanceEther` parameter in Ganache's documentation.
+
+## Remix Solidity IDE
+For quick experimentation with the contract one might prefer to use [Remix Solidity IDE](http://remix.ethereum.org) as well.
